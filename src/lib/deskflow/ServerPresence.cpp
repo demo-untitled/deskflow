@@ -17,8 +17,6 @@
 #include <QSet>
 #include <QUdpSocket>
 
-#include <exception>
-
 namespace deskflow {
 
 namespace {
@@ -126,13 +124,6 @@ void ServerPresenceListener::run()
       "listening for server presence announcements on UDP port %u",
       static_cast<unsigned>(ServerPresence::kDiscoveryPort)
   );
-  try {
-    m_events->waitForReady();
-  } catch (const std::exception &e) {
-    LOG_WARN("server presence listener stopped before the event queue was ready: %s", e.what());
-    return;
-  }
-
   while (!m_stopping.load()) {
     if (!socket.waitForReadyRead(500)) {
       continue;

@@ -15,4 +15,5 @@ class ServerPresenceTests : public QObject
 private Q_SLOTS:
   void validAnnouncement();
   void invalidAnnouncement();
+  void listenerDoesNotWaitForEventQueue();
 };
