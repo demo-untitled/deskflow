@@ -364,7 +364,10 @@ int ClientApp::mainLoop()
 
   getEvents()->addHandler(EventTypes::ClientServerPresence, this, [this](const auto &) { handleServerPresence(); });
   m_serverPresenceListener = std::make_unique<deskflow::ServerPresenceListener>(getEvents(), this);
-  m_serverPresenceListener->start();
+  getEvents()->addHandler(EventTypes::ClientServerPresenceListenerStart, this, [this](const auto &) {
+    m_serverPresenceListener->start();
+  });
+  getEvents()->addEvent(Event(EventTypes::ClientServerPresenceListenerStart, this));
 
   // run event loop.  if startClient() failed we're supposed to retry
   // later.  the timer installed by startClient() will take care of
@@ -375,6 +378,7 @@ int ClientApp::mainLoop()
   LOG_DEBUG("stopping client");
   m_serverPresenceListener->stop();
   m_serverPresenceListener.reset();
+  getEvents()->removeHandler(EventTypes::ClientServerPresenceListenerStart, this);
   getEvents()->removeHandler(EventTypes::ClientServerPresence, this);
   stopClient();
   LOG_INFO("stopped client");

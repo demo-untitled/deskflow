@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "base/Log.h"
+
 #include <QTest>
 
 class ServerPresenceTests : public QObject
@@ -15,4 +17,8 @@ class ServerPresenceTests : public QObject
 private Q_SLOTS:
   void validAnnouncement();
   void invalidAnnouncement();
+  void listenerDoesNotWaitForEventQueue();
+
+private:
+  Log m_log;
 };
