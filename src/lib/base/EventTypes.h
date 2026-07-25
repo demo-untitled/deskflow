@@ -41,6 +41,9 @@ enum class EventTypes : uint32_t
   */
   ClientDisconnected,
 
+  /// A Deskflow server announced that it is ready for clients.
+  ClientServerPresence,
+
   /** Internal client event used to defer disconnect cleanup until the current callback has returned.
    */
   ClientDisconnectRequested,
