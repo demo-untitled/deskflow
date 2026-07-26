@@ -7,6 +7,7 @@
 #pragma once
 
 #include "arch/Arch.h"
+#include "base/Log.h"
 
 #include <QObject>
 
@@ -22,5 +23,6 @@ private Q_SLOTS:
   void waitForReady_eventLoopAlreadyReady_returnsImmediately();
 
 private:
+  Log m_log;
   Arch m_arch;
 };
