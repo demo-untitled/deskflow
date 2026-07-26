@@ -63,10 +63,13 @@ jobs:
 
           exit 1
 
-      - name: Server presence regression test
+      - name: Reconnection regression tests
         env:
           QT_QPA_PLATFORM: offscreen
-        run: ctest --test-dir build/src/unittests -R '^ServerPresenceTests$' --output-on-failure
+        run: >-
+          ctest --test-dir build/src/unittests
+          -R '^(EventQueueTests|ServerPresenceTests)$'
+          --output-on-failure
 
       - name: Test package
         uses: ./.github/actions/test-package
