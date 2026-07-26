@@ -13,9 +13,12 @@
 
 #include <QList>
 
+#include <memory>
+
 namespace deskflow {
 class Screen;
 class ClientArgs;
+class ServerPresenceListener;
 } // namespace deskflow
 
 class Event;
@@ -27,7 +30,7 @@ class ClientApp : public App
 {
 public:
   explicit ClientApp(IEventQueue *events, const QString &processName = QString());
-  ~ClientApp() override = default;
+  ~ClientApp() override;
 
   //
   // IApp overrides
@@ -55,7 +58,9 @@ public:
   deskflow::Screen *openClientScreen();
   void closeClientScreen(deskflow::Screen *screen);
   void handleClientRestart(const Event &, EventQueueTimer *vtimer);
+  void cancelClientRestart();
   void scheduleClientRestart(double retryTime);
+  void handleServerPresence();
   void handleClientConnected();
   void handleClientFailed(const Event &e);
   void handleClientRefused(const Event &e);
@@ -86,6 +91,7 @@ public:
 
 private:
   ISocketFactory *getSocketFactory() const;
+  double serverWaitRetryTime() const;
   NetworkAddress &getCurrentServerAddress();
   void tryNextServer();
 
@@ -96,4 +102,6 @@ private:
   size_t m_currentServerIndex = 0;
   size_t m_lastServerAddressIndex = 0;
   uint m_retryCount = 0;
+  EventQueueTimer *m_restartTimer = nullptr;
+  std::unique_ptr<deskflow::ServerPresenceListener> m_serverPresenceListener;
 };

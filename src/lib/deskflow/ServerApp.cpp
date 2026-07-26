@@ -18,6 +18,7 @@
 #include "deskflow/ProtocolTypes.h"
 #include "deskflow/Screen.h"
 #include "deskflow/ScreenException.h"
+#include "deskflow/ServerPresence.h"
 #include "deskflow/ipc/CoreIpc.h"
 #include "net/SocketException.h"
 #include "net/SocketMultiplexer.h"
@@ -374,6 +375,10 @@ bool ServerApp::startServer()
     LOG_DEBUG("started server, waiting for clients");
     ipcSendConnectionState(deskflow::core::ConnectionState::Listening);
     m_serverState = Started;
+    deskflow::ServerPresence::announce(
+        Settings::value(Settings::Core::ComputerName).toString(),
+        static_cast<quint16>(Settings::value(Settings::Core::Port).toUInt())
+    );
     return true;
   } catch (SocketAddressInUseException &e) {
     LOG_CRIT("cannot listen for clients: %s", e.what());

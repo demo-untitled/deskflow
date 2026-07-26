@@ -17,6 +17,7 @@
 #include "common/Settings.h"
 #include "deskflow/Screen.h"
 #include "deskflow/ScreenException.h"
+#include "deskflow/ServerPresence.h"
 #include "deskflow/ipc/CoreIpc.h"
 #include "net/NetworkAddress.h"
 #include "net/SocketException.h"
@@ -47,6 +48,8 @@ ClientApp::ClientApp(IEventQueue *events, const QString &processName) : App(even
 {
   // do nothing
 }
+
+ClientApp::~ClientApp() = default;
 
 void ClientApp::parseArgs()
 {
@@ -150,25 +153,58 @@ void ClientApp::closeClientScreen(deskflow::Screen *screen)
 
 void ClientApp::handleClientRestart(const Event &, EventQueueTimer *timer)
 {
-  // discard old timer
-  getEvents()->deleteTimer(timer);
+  if (timer != m_restartTimer) {
+    return;
+  }
+
   getEvents()->removeHandler(EventTypes::Timer, timer);
+  getEvents()->deleteTimer(timer);
+  m_restartTimer = nullptr;
 
   // reconnect
   startClient();
 }
 
+void ClientApp::cancelClientRestart()
+{
+  if (m_restartTimer == nullptr) {
+    return;
+  }
+
+  auto *timer = m_restartTimer;
+  m_restartTimer = nullptr;
+  getEvents()->removeHandler(EventTypes::Timer, timer);
+  getEvents()->deleteTimer(timer);
+}
+
 void ClientApp::scheduleClientRestart(double retryTime)
 {
+  cancelClientRestart();
+
   LOG_DEBUG("retry in %.0f seconds", retryTime);
   ipcSendToClient("retryIn", QString::number(retryTime, 'f', 0));
   // install a timer and handler to retry later
-  EventQueueTimer *timer = getEvents()->newOneShotTimer(retryTime, nullptr);
-  getEvents()->addHandler(EventTypes::Timer, timer, [this, timer](const auto &e) { handleClientRestart(e, timer); });
+  m_restartTimer = getEvents()->newOneShotTimer(retryTime, nullptr);
+  getEvents()->addHandler(EventTypes::Timer, m_restartTimer, [this, timer = m_restartTimer](const auto &e) {
+    handleClientRestart(e, timer);
+  });
+}
+
+void ClientApp::handleServerPresence()
+{
+  if (m_suspended || m_restartTimer == nullptr) {
+    return;
+  }
+
+  LOG_INFO("server presence detected, reconnecting now");
+  cancelClientRestart();
+  m_retryCount = 0;
+  startClient();
 }
 
 void ClientApp::handleClientConnected()
 {
+  cancelClientRestart();
   LOG_DEBUG("connected to server");
   ipcSendConnectionState(deskflow::core::ConnectionState::Connected);
   // Reset server index on successful connection
@@ -214,7 +250,7 @@ void ClientApp::handleClientRefused(const Event &e)
   } else {
     LOG_WARN("failed to connect to server: %s", qPrintable(info->m_what));
     if (!m_suspended) {
-      scheduleClientRestart(retryTime());
+      scheduleClientRestart(serverWaitRetryTime());
       m_retryCount++;
     }
   }
@@ -226,7 +262,7 @@ void ClientApp::handleClientDisconnected()
   LOG_DEBUG("disconnected from server");
   ipcSendConnectionState(deskflow::core::ConnectionState::Disconnected);
   if (!m_suspended) {
-    scheduleClientRestart(retryTime());
+    scheduleClientRestart(serverWaitRetryTime());
   }
 }
 
@@ -309,6 +345,7 @@ bool ClientApp::startClient()
 
 void ClientApp::stopClient()
 {
+  cancelClientRestart();
   closeClient(m_client);
   closeClientScreen(m_clientScreen);
   m_client = nullptr;
@@ -325,6 +362,13 @@ int ClientApp::mainLoop()
   // start client, etc
   appUtil().startNode();
 
+  getEvents()->addHandler(EventTypes::ClientServerPresence, this, [this](const auto &) { handleServerPresence(); });
+  m_serverPresenceListener = std::make_unique<deskflow::ServerPresenceListener>(getEvents(), this);
+  getEvents()->addHandler(EventTypes::ClientServerPresenceListenerStart, this, [this](const auto &) {
+    m_serverPresenceListener->start();
+  });
+  getEvents()->addEvent(Event(EventTypes::ClientServerPresenceListenerStart, this));
+
   // run event loop.  if startClient() failed we're supposed to retry
   // later.  the timer installed by startClient() will take care of
   // that.
@@ -332,6 +376,10 @@ int ClientApp::mainLoop()
 
   // close down
   LOG_DEBUG("stopping client");
+  m_serverPresenceListener->stop();
+  m_serverPresenceListener.reset();
+  getEvents()->removeHandler(EventTypes::ClientServerPresenceListenerStart, this);
+  getEvents()->removeHandler(EventTypes::ClientServerPresence, this);
   stopClient();
   LOG_INFO("stopped client");
 
@@ -403,4 +451,9 @@ double ClientApp::retryTime() const
   if (m_retryCount < 430) // 20 minutes
     return 120;
   return 300;
+}
+
+double ClientApp::serverWaitRetryTime() const
+{
+  return m_serverPresenceListener != nullptr ? 300.0 : retryTime();
 }

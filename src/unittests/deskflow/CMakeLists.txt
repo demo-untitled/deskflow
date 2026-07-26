@@ -53,6 +53,14 @@ create_test(
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
 )
 
+create_test(
+  NAME ServerPresenceTests
+  DEPENDS app
+  LIBS arch base io ${extra_libs}
+  SOURCE ServerPresenceTests.cpp
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/src/lib/deskflow"
+)
+
 if(BUILD_X11_SUPPORT)
   create_test(
     NAME X11LayoutParserTests

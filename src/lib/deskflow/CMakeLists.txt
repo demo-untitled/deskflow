@@ -73,6 +73,8 @@ add_library(${lib_name} STATIC ${PLATFORM_CODE}
   Screen.h
   ScreenException.cpp
   ScreenException.h
+  ServerPresence.cpp
+  ServerPresence.h
   ServerApp.cpp
   ServerApp.h
   StreamChunker.cpp
