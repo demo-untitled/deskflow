@@ -1,0 +1,80 @@
+name: Package Windows x64
+
+on:
+  push:
+    branches:
+      - build/windows-x64
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_CONFIGURE: >-
+    cmake -Bbuild
+    -G Ninja
+    -DCMAKE_BUILD_TYPE=Release
+    -DSKIP_BUILD_TESTS=ON
+    -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+
+jobs:
+  package:
+    name: windows-x64
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+      - name: Fancy Checkout
+        uses: sithlord48/fancy-checkout@v2
+
+      - name: Setup VC++ environment
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: amd64
+          spectre: true
+
+      - name: Install dependencies
+        id: get-deps
+        uses: ./.github/actions/install-dependencies
+        with:
+          qt-version: 6.10.3
+          vcpkg-triplet: x64-windows-release
+
+      - name: Get version
+        uses: ./.github/actions/get-version
+
+      - name: Update Windows paths
+        shell: pwsh
+        run: echo "C:\Program Files\doxygen\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Configure
+        run: >-
+          ${{ env.CMAKE_CONFIGURE }}
+          ${{ steps.get-deps.outputs.vcpkg-cmake-config }}
+          -DPACKAGE_VERSION_LABEL="${{ env.DESKFLOW_PACKAGE_VERSION }}"
+
+      - name: Build and package
+        shell: bash
+        run: |
+          cmake --build build --config Release -j8
+          cmake --build build --config Release -j8 --target package
+
+      - name: Top-down clipboard bitmap regression test
+        run: >-
+          ctest --test-dir build/src/unittests
+          -R '^MSWindowsClipboardTests$'
+          --output-on-failure
+
+      - name: Test package
+        uses: ./.github/actions/test-package
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-deskflow-windows-x64
+          path: ${{ github.workspace }}/build/deskflow[-_]*.*
+          if-no-files-found: error
